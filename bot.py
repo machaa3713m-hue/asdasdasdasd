@@ -39,7 +39,7 @@ except ImportError:
 # ⚙️ AYARLAR
 # ═══════════════════════════════════════════════════════════
 
-BOT_TOKEN = "8775947929:AAH8xCl_2jBj8JhV0I8-EVpD4vF7zxrAv4o"
+BOT_TOKEN = "8630076957:AAG6W5x04nuVo9iwW6UFkGlZYxb8vpVW8XM"
 ADMIN_ID = 8882473760
 SUPPORT_USERNAME = "@derincpm"
 CHANNEL_USERNAME = "@derincpmmain"
