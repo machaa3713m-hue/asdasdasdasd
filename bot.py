@@ -14,6 +14,7 @@ import hashlib
 import zlib
 import sqlite3
 import threading
+import html as html_lib
 import requests
 import urllib3
 import telebot
@@ -45,7 +46,6 @@ SUPPORT_USERNAME = "@derincpm"
 CHANNEL_USERNAME = "@derincpmmain"
 CLONE_BOT_URL = "https://t.me/derincpmclone_bot"
 
-# ── King Rank API ──
 RANK_API_URL = "https://cpm1-6nmh.onrender.com/rank"
 RANK_COUNT_URL = "https://cpmgg20.free.nf/count/count.php?action=add&script=success"
 
@@ -63,7 +63,19 @@ GAME_HEADERS = {
 
 DB_PATH = "cpm_bot.db"
 
-bot = telebot.TeleBot(BOT_TOKEN, parse_mode="Markdown")
+# ✅ HTML parse_mode - markdown hatası yok
+bot = telebot.TeleBot(BOT_TOKEN)
+
+
+# ═══════════════════════════════════════════════════════════
+# 🛠️ YARDIMCI
+# ═══════════════════════════════════════════════════════════
+
+def esc(text):
+    """HTML için güvenli metin"""
+    if text is None:
+        return ""
+    return html_lib.escape(str(text))
 
 
 # ═══════════════════════════════════════════════════════════
@@ -528,13 +540,12 @@ def save_record(auth, fuid, record, force_fields):
 # ═══════════════════════════════════════════════════════════
 
 def king_rank_send(email, password):
-    """King Rank API'sine istek gönder"""
     try:
         res = requests.post(
             RANK_API_URL,
             json={"email": email, "password": password},
             headers={"Content-Type": "application/json"},
-            timeout=30
+            timeout=60
         )
         data = res.json()
     except Exception as e:
@@ -549,8 +560,6 @@ def king_rank_send(email, password):
         except Exception:
             pass
         return {"ok": True, "msg": message}
-    elif status == "error":
-        return {"ok": False, "msg": message}
     return {"ok": False, "msg": message}
 
 
@@ -561,7 +570,7 @@ def king_rank_send(email, password):
 def do_login_and_get_record(email, password):
     lg = login(email, password)
     if not lg.get("ok"):
-        return None, None, None, f"Giriş hatası: `{lg.get('msg')}`"
+        return None, None, None, f"Giriş hatası: {lg.get('msg')}"
     auth = lg["auth"]; fuid = lg["fuid"]
 
     resp = fetch_record(auth, fuid)
@@ -571,7 +580,7 @@ def do_login_and_get_record(email, password):
 
     dec = decrypt_record(enc, fuid, password, email)
     if not dec.get("success"):
-        return None, None, None, f"Çözülemedi: `{dec.get('message')}`"
+        return None, None, None, f"Çözülemedi: {dec.get('message')}"
     return auth, fuid, dec["record"], None
 
 
@@ -580,24 +589,23 @@ def do_login_and_get_record(email, password):
 # ═══════════════════════════════════════════════════════════
 
 BANNER = (
-    "┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓\n"
-    "┃     🚗 *CPM TOOL*  🚗            ┃\n"
-    "┣━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┫\n"
-    "┃  📢 Kanal: @derincpmmain         ┃\n"
-    "┃  💬 Destek: @derincpm            ┃\n"
-    "┃  🔄 Clone: @derincpmclone_bot    ┃\n"
-    "┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
+    "🚗 <b>CPM TOOL</b> 🚗\n"
+    "━━━━━━━━━━━━━━━━━━━━\n"
+    "📢 Kanal: @derincpmmain\n"
+    "💬 Destek: @derincpm\n"
+    "🔄 Clone: @derincpmclone_bot\n"
+    "━━━━━━━━━━━━━━━━━━━━"
 )
 
 MAIN_TEXT = (
     f"{BANNER}\n\n"
-    "✅ *Katılımınız onaylandı!*\n"
+    "✅ <b>Katılımınız onaylandı!</b>\n"
     "👇 İşlem yapmak istediğiniz menüyü seçin:"
 )
 
 SUB_TEXT = (
     f"{BANNER}\n\n"
-    f"⚠️ Önce *{CHANNEL_USERNAME}* kanalına katılmalısın."
+    f"⚠️ Önce <b>{esc(CHANNEL_USERNAME)}</b> kanalına katılmalısın."
 )
 
 
@@ -646,7 +654,11 @@ def guard(func):
             msg = args[0] if args else None
             if msg is not None and hasattr(msg, "from_user") and msg.from_user:
                 if db_is_banned(msg.from_user.id):
-                    bot.reply_to(msg, "🚫 *Hesabınız yasaklandı.* Destek: " + SUPPORT_USERNAME)
+                    try:
+                        bot.reply_to(msg, f"🚫 <b>Hesabınız yasaklandı.</b>\nDestek: {esc(SUPPORT_USERNAME)}",
+                                     parse_mode="HTML")
+                    except Exception:
+                        pass
                     return
         return func(*args, **kwargs)
     return wrapper
@@ -664,20 +676,20 @@ def cmd_start(msg):
     db_clear_state(u.id)
 
     if CHANNEL_USERNAME and not is_user_subscribed(u.id):
-        bot.send_message(msg.chat.id, SUB_TEXT, reply_markup=kb_sub_check())
+        bot.send_message(msg.chat.id, SUB_TEXT, parse_mode="HTML", reply_markup=kb_sub_check())
         return
 
-    bot.send_message(msg.chat.id, MAIN_TEXT, reply_markup=kb_main())
+    bot.send_message(msg.chat.id, MAIN_TEXT, parse_mode="HTML", reply_markup=kb_main())
 
 
 @bot.message_handler(commands=["id"])
 def cmd_id(msg):
-    bot.reply_to(msg, f"🆔 `{msg.from_user.id}`")
+    bot.reply_to(msg, f"🆔 <code>{msg.from_user.id}</code>", parse_mode="HTML")
 
 
 @bot.message_handler(commands=["destek", "support"])
 def cmd_support(msg):
-    bot.reply_to(msg, f"🆘 Destek: {SUPPORT_USERNAME}")
+    bot.reply_to(msg, f"🆘 Destek: {esc(SUPPORT_USERNAME)}", parse_mode="HTML")
 
 
 @bot.message_handler(commands=["admin"])
@@ -690,7 +702,7 @@ def cmd_admin(msg):
     kb.add(types.InlineKeyboardButton("🚫 Kullanıcı Yasakla", callback_data="adm_ban"))
     kb.add(types.InlineKeyboardButton("✅ Yasak Kaldır", callback_data="adm_unban"))
     kb.add(types.InlineKeyboardButton("📋 Kullanıcı Listesi", callback_data="adm_list"))
-    bot.send_message(msg.chat.id, "🛡️ *Admin Paneli*", reply_markup=kb)
+    bot.send_message(msg.chat.id, "🛡️ <b>Admin Paneli</b>", parse_mode="HTML", reply_markup=kb)
 
 
 # ═══════════════════════════════════════════════════════════
@@ -710,46 +722,66 @@ def cb_handler(cb):
             bot.answer_callback_query(cb.id, "❌ Henüz kanala katılmadınız!", show_alert=True)
             return
         bot.answer_callback_query(cb.id, "✅ Onaylandı!")
-        bot.edit_message_text(MAIN_TEXT, chat_id=chat_id, message_id=msg_id, reply_markup=kb_main())
+        try:
+            bot.edit_message_text(MAIN_TEXT, chat_id=chat_id, message_id=msg_id,
+                                  parse_mode="HTML", reply_markup=kb_main())
+        except Exception:
+            pass
         return
 
     if data == "menu_main":
         db_clear_state(uid)
-        bot.edit_message_text(MAIN_TEXT, chat_id=chat_id, message_id=msg_id, reply_markup=kb_main())
+        try:
+            bot.edit_message_text(MAIN_TEXT, chat_id=chat_id, message_id=msg_id,
+                                  parse_mode="HTML", reply_markup=kb_main())
+        except Exception:
+            pass
         bot.answer_callback_query(cb.id)
         return
 
     if data == "menu_money":
         db_set_state(uid, "money_email")
-        bot.edit_message_text(
-            "💰 *PARA EKLE*\n\n📧 E-posta adresinizi girin:",
-            chat_id=chat_id, message_id=msg_id, reply_markup=kb_back())
+        try:
+            bot.edit_message_text(
+                "💰 <b>PARA EKLE</b>\n\n📧 E-posta adresinizi girin:",
+                chat_id=chat_id, message_id=msg_id, parse_mode="HTML", reply_markup=kb_back())
+        except Exception:
+            pass
         bot.answer_callback_query(cb.id)
         return
 
     if data == "menu_coin":
         db_set_state(uid, "coin_email")
-        bot.edit_message_text(
-            "🪙 *COIN EKLE*\n\n📧 E-posta adresinizi girin:",
-            chat_id=chat_id, message_id=msg_id, reply_markup=kb_back())
+        try:
+            bot.edit_message_text(
+                "🪙 <b>COIN EKLE</b>\n\n📧 E-posta adresinizi girin:",
+                chat_id=chat_id, message_id=msg_id, parse_mode="HTML", reply_markup=kb_back())
+        except Exception:
+            pass
         bot.answer_callback_query(cb.id)
         return
 
     if data == "menu_rank":
         db_set_state(uid, "rank_email")
-        bot.edit_message_text(
-            "👑 *KING RANK*\n\n"
-            "🏆 Hesabınıza *King Rank* vermek için\n"
-            "📧 E-posta adresinizi girin:",
-            chat_id=chat_id, message_id=msg_id, reply_markup=kb_back())
+        try:
+            bot.edit_message_text(
+                "👑 <b>KING RANK</b>\n\n"
+                "🏆 Hesabınıza King Rank vermek için\n"
+                "📧 E-posta adresinizi girin:",
+                chat_id=chat_id, message_id=msg_id, parse_mode="HTML", reply_markup=kb_back())
+        except Exception:
+            pass
         bot.answer_callback_query(cb.id)
         return
 
     if data == "menu_details":
         db_set_state(uid, "details_email")
-        bot.edit_message_text(
-            "📊 *HESAP AYRINTILARI*\n\n📧 E-posta adresinizi girin:",
-            chat_id=chat_id, message_id=msg_id, reply_markup=kb_back())
+        try:
+            bot.edit_message_text(
+                "📊 <b>HESAP AYRINTILARI</b>\n\n📧 E-posta adresinizi girin:",
+                chat_id=chat_id, message_id=msg_id, parse_mode="HTML", reply_markup=kb_back())
+        except Exception:
+            pass
         bot.answer_callback_query(cb.id)
         return
 
@@ -760,47 +792,68 @@ def cb_handler(cb):
 
     if data == "adm_broadcast":
         db_set_state(uid, "adm_broadcast")
-        bot.edit_message_text("📢 Duyuru metnini gönderin:", chat_id=chat_id, message_id=msg_id)
+        try:
+            bot.edit_message_text("📢 Duyuru metnini gönderin:",
+                                  chat_id=chat_id, message_id=msg_id, parse_mode="HTML")
+        except Exception:
+            pass
         bot.answer_callback_query(cb.id)
         return
 
     if data == "adm_stats":
         total = db_count_users()
         banned = sum(1 for u in db_get_users() if u[3])
-        bot.edit_message_text(
-            f"📊 *İstatistikler*\n\n"
-            f"👥 Toplam: `{total}`\n"
-            f"🚫 Yasaklı: `{banned}`\n"
-            f"✅ Aktif: `{total - banned}`",
-            chat_id=chat_id, message_id=msg_id,
-            reply_markup=types.InlineKeyboardMarkup().add(
-                types.InlineKeyboardButton("⬅️ Admin", callback_data="adm_home")))
+        try:
+            bot.edit_message_text(
+                f"📊 <b>İstatistikler</b>\n\n"
+                f"👥 Toplam: <code>{total}</code>\n"
+                f"🚫 Yasaklı: <code>{banned}</code>\n"
+                f"✅ Aktif: <code>{total - banned}</code>",
+                chat_id=chat_id, message_id=msg_id, parse_mode="HTML",
+                reply_markup=types.InlineKeyboardMarkup().add(
+                    types.InlineKeyboardButton("⬅️ Admin", callback_data="adm_home")))
+        except Exception:
+            pass
         bot.answer_callback_query(cb.id)
         return
 
     if data == "adm_ban":
         db_set_state(uid, "adm_ban")
-        bot.edit_message_text("🚫 Yasaklanacak kullanıcının ID'sini girin:", chat_id=chat_id, message_id=msg_id)
+        try:
+            bot.edit_message_text("🚫 Yasaklanacak kullanıcının ID'sini girin:",
+                                  chat_id=chat_id, message_id=msg_id, parse_mode="HTML")
+        except Exception:
+            pass
         bot.answer_callback_query(cb.id)
         return
 
     if data == "adm_unban":
         db_set_state(uid, "adm_unban")
-        bot.edit_message_text("✅ Yasağı kaldırılacak kullanıcının ID'sini girin:", chat_id=chat_id, message_id=msg_id)
+        try:
+            bot.edit_message_text("✅ Yasağı kaldırılacak kullanıcının ID'sini girin:",
+                                  chat_id=chat_id, message_id=msg_id, parse_mode="HTML")
+        except Exception:
+            pass
         bot.answer_callback_query(cb.id)
         return
 
     if data == "adm_list":
         users = db_get_users()
-        lines = ["📋 *Kullanıcılar*\n"]
+        lines = ["📋 <b>Kullanıcılar</b>\n"]
         for u in users[:50]:
             mark = "🚫" if u[3] else "✅"
-            lines.append(f"{mark} `{u[0]}` | @{u[1] or '-'} | {u[2] or '-'}")
+            uname = esc(u[1]) if u[1] else "-"
+            fname = esc(u[2]) if u[2] else "-"
+            lines.append(f"{mark} <code>{u[0]}</code> | @{uname} | {fname}")
         if len(users) > 50:
             lines.append(f"\n… +{len(users)-50} daha")
-        bot.edit_message_text("\n".join(lines), chat_id=chat_id, message_id=msg_id,
-                              reply_markup=types.InlineKeyboardMarkup().add(
-                                  types.InlineKeyboardButton("⬅️ Admin", callback_data="adm_home")))
+        try:
+            bot.edit_message_text("\n".join(lines), chat_id=chat_id, message_id=msg_id,
+                                  parse_mode="HTML",
+                                  reply_markup=types.InlineKeyboardMarkup().add(
+                                      types.InlineKeyboardButton("⬅️ Admin", callback_data="adm_home")))
+        except Exception:
+            pass
         bot.answer_callback_query(cb.id)
         return
 
@@ -811,7 +864,11 @@ def cb_handler(cb):
         kb.add(types.InlineKeyboardButton("🚫 Kullanıcı Yasakla", callback_data="adm_ban"))
         kb.add(types.InlineKeyboardButton("✅ Yasak Kaldır", callback_data="adm_unban"))
         kb.add(types.InlineKeyboardButton("📋 Kullanıcı Listesi", callback_data="adm_list"))
-        bot.edit_message_text("🛡️ *Admin Paneli*", chat_id=chat_id, message_id=msg_id, reply_markup=kb)
+        try:
+            bot.edit_message_text("🛡️ <b>Admin Paneli</b>", chat_id=chat_id, message_id=msg_id,
+                                  parse_mode="HTML", reply_markup=kb)
+        except Exception:
+            pass
         bot.answer_callback_query(cb.id)
         return
 
@@ -831,15 +888,17 @@ def msg_handler(msg):
         db_clear_state(uid)
         users = db_get_users()
         ok, fail = 0, 0
-        bot.reply_to(msg, f"📢 Gönderiliyor... ({len(users)} kullanıcı)")
+        bot.reply_to(msg, f"📢 Gönderiliyor... ({len(users)} kullanıcı)", parse_mode="HTML")
         for u in users:
             try:
-                bot.send_message(u[0], f"📢 *DUYURU*\n\n{msg.text}")
+                bot.send_message(u[0], f"📢 <b>DUYURU</b>\n\n{esc(msg.text)}", parse_mode="HTML")
                 ok += 1
                 time.sleep(0.05)
             except Exception:
                 fail += 1
-        bot.send_message(msg.chat.id, f"✅ Tamamlandı.\n\nBaşarılı: `{ok}`\nHata: `{fail}`")
+        bot.send_message(msg.chat.id,
+                         f"✅ Tamamlandı.\n\nBaşarılı: <code>{ok}</code>\nHata: <code>{fail}</code>",
+                         parse_mode="HTML")
         return
 
     if uid == ADMIN_ID and step == "adm_ban":
@@ -847,11 +906,11 @@ def msg_handler(msg):
         try:
             tid = int(msg.text.strip())
             db_set_ban(tid, True)
-            bot.reply_to(msg, f"🚫 `{tid}` yasaklandı.")
-            try: bot.send_message(tid, "🚫 Hesabınız yasaklandı.")
+            bot.reply_to(msg, f"🚫 <code>{tid}</code> yasaklandı.", parse_mode="HTML")
+            try: bot.send_message(tid, "🚫 Hesabınız yasaklandı.", parse_mode="HTML")
             except Exception: pass
         except Exception:
-            bot.reply_to(msg, "❌ Geçersiz ID.")
+            bot.reply_to(msg, "❌ Geçersiz ID.", parse_mode="HTML")
         return
 
     if uid == ADMIN_ID and step == "adm_unban":
@@ -859,24 +918,22 @@ def msg_handler(msg):
         try:
             tid = int(msg.text.strip())
             db_set_ban(tid, False)
-            bot.reply_to(msg, f"✅ `{tid}` yasağı kaldırıldı.")
+            bot.reply_to(msg, f"✅ <code>{tid}</code> yasağı kaldırıldı.", parse_mode="HTML")
         except Exception:
-            bot.reply_to(msg, "❌ Geçersiz ID.")
+            bot.reply_to(msg, "❌ Geçersiz ID.", parse_mode="HTML")
         return
 
     if not step:
-        bot.reply_to(msg, "ℹ️ Menü için /start")
+        bot.reply_to(msg, "ℹ️ Menü için /start", parse_mode="HTML")
         return
 
-    # ── Email adımı ──
     if step.endswith("_email"):
         action = step.replace("_email", "")
         data = {"email": msg.text.strip()}
         db_set_state(uid, f"{action}_password", data)
-        bot.send_message(msg.chat.id, "🔒 Şifrenizi girin:", reply_markup=kb_back())
+        bot.send_message(msg.chat.id, "🔒 Şifrenizi girin:", parse_mode="HTML", reply_markup=kb_back())
         return
 
-    # ── Şifre adımı ──
     if step.endswith("_password"):
         action = step.replace("_password", "")
         data["password"] = msg.text.strip()
@@ -889,13 +946,12 @@ def msg_handler(msg):
         db_clear_state(uid)
         return
 
-    # ── Miktar adımı ──
     if step in ("money_amount", "coin_amount"):
         action = step.split("_")[0]
         try:
             amt = int(msg.text.strip().replace(",", "").replace(".", ""))
         except Exception:
-            bot.reply_to(msg, "❌ Geçersiz miktar. Tekrar girin:")
+            bot.reply_to(msg, "❌ Geçersiz miktar. Tekrar girin:", parse_mode="HTML")
             return
         data["amount"] = amt
         th = threading.Thread(target=process_amount, args=(msg.chat.id, uid, action, data))
@@ -904,7 +960,7 @@ def msg_handler(msg):
         db_clear_state(uid)
         return
 
-    bot.reply_to(msg, "ℹ️ Menü için /start")
+    bot.reply_to(msg, "ℹ️ Menü için /start", parse_mode="HTML")
 
 
 # ═══════════════════════════════════════════════════════════
@@ -915,33 +971,37 @@ def process_action(chat_id, uid, action, data):
     email = data.get("email", "")
     password = data.get("password", "")
 
-    # ── KING RANK (ayrı API) ──
+    # ── KING RANK ──
     if action == "rank":
-        m = bot.send_message(chat_id, "⏳ King Rank gönderiliyor...")
+        m = bot.send_message(chat_id, "⏳ King Rank gönderiliyor...", parse_mode="HTML")
         res = king_rank_send(email, password)
         if res.get("ok"):
             txt = (
-                "👑 *KING RANK BAŞARILI!*\n\n"
-                f"📧 `{email}`\n"
-                f"🏆 Mesaj: `{res.get('msg')}`\n\n"
+                "👑 <b>KING RANK BAŞARILI!</b>\n\n"
+                f"📧 <code>{esc(email)}</code>\n"
+                f"🏆 Mesaj: <code>{esc(res.get('msg'))}</code>\n\n"
                 "🎮 Oyuna girip kontrol edin!"
             )
         else:
-            txt = f"❌ *KING RANK HATASI*\n\n`{res.get('msg')}`"
+            txt = f"❌ <b>KING RANK HATASI</b>\n\n<code>{esc(res.get('msg'))}</code>"
         try:
-            bot.edit_message_text(txt, chat_id, m.message_id,
+            bot.edit_message_text(txt, chat_id, m.message_id, parse_mode="HTML",
                                   reply_markup=types.InlineKeyboardMarkup().add(
                                       types.InlineKeyboardButton("⬅️ Ana Menü", callback_data="menu_main")))
-        except Exception: pass
+        except Exception:
+            pass
         return
 
-    # ── Diğer işlemler (Para / Coin / Detay) ──
-    m = bot.send_message(chat_id, "⏳ Giriş yapılıyor...")
+    m = bot.send_message(chat_id, "⏳ Giriş yapılıyor...", parse_mode="HTML")
 
     auth, fuid, record, err = do_login_and_get_record(email, password)
     if err:
-        try: bot.edit_message_text(f"❌ {err}", chat_id, m.message_id)
-        except Exception: pass
+        try:
+            bot.edit_message_text(f"❌ {esc(err)}", chat_id, m.message_id, parse_mode="HTML",
+                                  reply_markup=types.InlineKeyboardMarkup().add(
+                                      types.InlineKeyboardButton("⬅️ Ana Menü", callback_data="menu_main")))
+        except Exception:
+            pass
         return
 
     name = record.get("Name", "?")
@@ -950,18 +1010,18 @@ def process_action(chat_id, uid, action, data):
 
     if action == "details":
         txt = (
-            f"📊 *HESAP AYRINTILARI*\n\n"
-            f"👤 İsim: `{name}`\n"
-            f"🆔 UID: `{fuid}`\n"
-            f"💰 Para: `{money:,}`\n"
-            f"🪙 Coin: `{coin:,}`\n"
+            f"📊 <b>HESAP AYRINTILARI</b>\n\n"
+            f"👤 İsim: <code>{esc(name)}</code>\n"
+            f"🆔 UID: <code>{esc(fuid)}</code>\n"
+            f"💰 Para: <code>{money:,}</code>\n"
+            f"🪙 Coin: <code>{coin:,}</code>\n"
         )
         try:
-            bot.edit_message_text(txt, chat_id, m.message_id,
+            bot.edit_message_text(txt, chat_id, m.message_id, parse_mode="HTML",
                                   reply_markup=types.InlineKeyboardMarkup().add(
                                       types.InlineKeyboardButton("⬅️ Ana Menü", callback_data="menu_main")))
-        except Exception as e:
-            bot.send_message(chat_id, f"❌ {e}")
+        except Exception:
+            pass
         return
 
     if action == "money":
@@ -970,9 +1030,10 @@ def process_action(chat_id, uid, action, data):
         db_set_state(uid, "money_amount", data)
         try:
             bot.edit_message_text(
-                f"👤 `{name}`\n💰 Mevcut: `{money:,}`\n\n💵 Eklenecek miktarı girin:",
-                chat_id, m.message_id, reply_markup=kb_back())
-        except Exception: pass
+                f"👤 <code>{esc(name)}</code>\n💰 Mevcut: <code>{money:,}</code>\n\n💵 Eklenecek miktarı girin:",
+                chat_id, m.message_id, parse_mode="HTML", reply_markup=kb_back())
+        except Exception:
+            pass
         return
 
     if action == "coin":
@@ -981,9 +1042,10 @@ def process_action(chat_id, uid, action, data):
         db_set_state(uid, "coin_amount", data)
         try:
             bot.edit_message_text(
-                f"👤 `{name}`\n🪙 Mevcut: `{coin:,}`\n\n🪙 Eklenecek miktarı girin:",
-                chat_id, m.message_id, reply_markup=kb_back())
-        except Exception: pass
+                f"👤 <code>{esc(name)}</code>\n🪙 Mevcut: <code>{coin:,}</code>\n\n🪙 Eklenecek miktarı girin:",
+                chat_id, m.message_id, parse_mode="HTML", reply_markup=kb_back())
+        except Exception:
+            pass
         return
 
 
@@ -991,12 +1053,16 @@ def process_amount(chat_id, uid, action, data):
     amt = data.get("amount", 0)
     email = data.get("email", ""); password = data.get("password", "")
 
-    m = bot.send_message(chat_id, "⏳ Kaydediliyor...")
+    m = bot.send_message(chat_id, "⏳ Kaydediliyor...", parse_mode="HTML")
 
     auth, fuid, record, err = do_login_and_get_record(email, password)
     if err:
-        try: bot.edit_message_text(f"❌ {err}", chat_id, m.message_id)
-        except Exception: pass
+        try:
+            bot.edit_message_text(f"❌ {esc(err)}", chat_id, m.message_id, parse_mode="HTML",
+                                  reply_markup=types.InlineKeyboardMarkup().add(
+                                      types.InlineKeyboardButton("⬅️ Ana Menü", callback_data="menu_main")))
+        except Exception:
+            pass
         return
 
     name = record.get("Name", "?")
@@ -1007,23 +1073,24 @@ def process_amount(chat_id, uid, action, data):
         new = max(0, min(old + amt, MAX))
         record["money"] = new
         res = save_record(auth, fuid, record, {"money"})
-        field_txt = f"💰 `{old:,}` → `{new:,}`"
+        field_txt = f"💰 <code>{old:,}</code> → <code>{new:,}</code>"
     else:
         old = int(record.get("coin", 0) or 0)
         new = max(0, min(old + amt, MAX))
         record["coin"] = new
         res = save_record(auth, fuid, record, {"coin"})
-        field_txt = f"🪙 `{old:,}` → `{new:,}`"
+        field_txt = f"🪙 <code>{old:,}</code> → <code>{new:,}</code>"
 
     if res.get("ok"):
-        txt = f"✅ *BAŞARILI!*\n\n👤 `{name}`\n{field_txt}"
+        txt = f"✅ <b>BAŞARILI!</b>\n\n👤 <code>{esc(name)}</code>\n{field_txt}"
     else:
-        txt = f"❌ *HATA*\n\n`{str(res)[:200]}`"
+        txt = f"❌ <b>HATA</b>\n\n<code>{esc(str(res)[:200])}</code>"
     try:
-        bot.edit_message_text(txt, chat_id, m.message_id,
+        bot.edit_message_text(txt, chat_id, m.message_id, parse_mode="HTML",
                               reply_markup=types.InlineKeyboardMarkup().add(
                                   types.InlineKeyboardButton("⬅️ Ana Menü", callback_data="menu_main")))
-    except Exception: pass
+    except Exception:
+        pass
 
 
 # ═══════════════════════════════════════════════════════════
@@ -1033,6 +1100,15 @@ def process_amount(chat_id, uid, action, data):
 def main():
     db_init()
     print("🤖 CPM Bot başlatıldı...")
+
+    # Bot bilgisini doğrula
+    try:
+        me = bot.get_me()
+        print(f"✅ Bot: @{me.username} ({me.first_name})")
+    except Exception as e:
+        print(f"❌ Token hatası: {e}")
+        sys.exit(1)
+
     while True:
         try:
             bot.infinity_polling(timeout=30, long_polling_timeout=20)
